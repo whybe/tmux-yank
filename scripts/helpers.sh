@@ -30,6 +30,15 @@ custom_copy_command_option="@custom_copy_command"
 override_copy_command_default=""
 override_copy_command_option="@override_copy_command"
 
+custom_paste_command_default=""
+custom_paste_command_option="@custom_paste_command"
+
+override_paste_command_default=""
+override_paste_command_option="@override_paste_command"
+
+yank_remote_port_default=""
+yank_remote_port_option="@yank_remote_port"
+
 # helper functions
 get_tmux_option() {
     local option="$1"
@@ -82,6 +91,18 @@ custom_copy_command() {
 override_copy_command() {
     get_tmux_option "$override_copy_command_option" "$override_copy_command_default"
 }
+
+custom_paste_command() {
+    get_tmux_option "$custom_paste_command_option" "$custom_paste_command_default"
+}
+
+override_paste_command() {
+    get_tmux_option "$override_paste_command_option" "$override_paste_command_default"
+}
+
+yank_remote_port() {
+    get_tmux_option "$yank_remote_port_option" "$yank_remote_port_default"
+}
 # Ensures a message is displayed for 5 seconds in tmux prompt.
 # Does not override the 'display-time' tmux option.
 display_message() {
@@ -125,18 +146,49 @@ clipboard_copy_command() {
         fi
     elif command_exists "clip.exe"; then # WSL clipboard command
         echo "clip.exe"
-    elif command_exists "xclip"; then
+    elif [ -n "${DISPLAY-}" ] && command_exists "xclip"; then
         local xclip_selection
         xclip_selection="$(yank_selection)"
         echo "xclip -selection $xclip_selection"
-    elif command_exists "xsel"; then
+    elif [ -n "${DISPLAY-}" ] && command_exists "xsel"; then
         local xsel_selection
         xsel_selection="$(yank_selection)"
         echo "xsel -i --$xsel_selection"
     elif command_exists "putclip"; then # cygwin clipboard command
         echo "putclip"
+    elif [ -n "${yank_remote_port-}" ] \
+             && (netstate -f inet -nl 2>/dev/null || netstate -4 -nl 2>/dev/null) \
+             | grep -q "[.:]$yank_remote_port"; then
+        echo "nc -q0 localhost $yank_remote_port; display-message \"yank\""
     elif [ -n "$(custom_copy_command)" ]; then
         custom_copy_command
+    fi
+}
+
+clipboard_paste_command() {
+    # installing reattach-to-user-namespace is recommended on OS X
+    if [ -n "$(override_paste_command)" ]; then
+        override_paste_command
+    elif command_exists "pbcopy"; then
+        if command_exists "reattach-to-user-namespace"; then
+            echo "tmux paste-buffer"
+        else
+            echo "tmux paste-buffer"
+        fi
+    elif command_exists "clip.exe"; then # WSL clipboard command
+        echo "tmux paste-buffer"
+    elif command_exists "xclip"; then
+        local xclip_selection
+        xclip_selection="$(yank_selection)"
+        echo "tmux set-buffer \"$(xclip -o -selection $xclip_selection)\"; tmux paste-buffer"
+    elif command_exists "xsel"; then
+        local xsel_selection
+        xsel_selection="$(yank_selection)"
+        echo "tmux set-buffer \"$(xsel -o --$xsel_selection)\"; tmux paste-buffer"
+    elif command_exists "putclip"; then # cygwin clipboard command
+        echo "tmux paste-buffer"
+    elif [ -n "$(custom_paste_command)" ]; then
+        custom_paste_command
     fi
 }
 
