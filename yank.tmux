@@ -51,6 +51,9 @@ set_copy_mode_bindings() {
         tmux bind-key -T copy-mode    "$(put_key)"             send-keys -X copy-pipe-and-cancel "$paste_command"
         tmux bind-key -T copy-mode    "$(yank_put_key)"        send-keys -X copy-pipe-and-cancel "$copy_command; $paste_command"
         tmux bind-key -T copy-mode    "$(yank_wo_newline_key)" send-keys -X copy-pipe-and-cancel "$copy_wo_newline_command"
+
+        tmux bind-key                 "]"                      run-shell "$paste_command"
+        tmux bind-key -T copy-mode-vi MouseDragEnd1Pane        send-keys -X copy-pipe-and-cancel "$copy_command"
     else
         tmux bind-key -t vi-copy      "$(yank_key)"            copy-pipe "$copy_command"
         tmux bind-key -t vi-copy      "$(put_key)"             copy-pipe "$paste_command"

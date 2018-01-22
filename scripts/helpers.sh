@@ -36,8 +36,11 @@ custom_paste_command_option="@custom_paste_command"
 override_paste_command_default=""
 override_paste_command_option="@override_paste_command"
 
-yank_remote_port_default=""
-yank_remote_port_option="@yank_remote_port"
+copy_remote_port_default=""
+copy_remote_port_option="@copy_remote_port"
+
+paste_remote_port_default=""
+paste_remote_port_option="@paste_remote_port"
 
 # helper functions
 get_tmux_option() {
@@ -100,8 +103,12 @@ override_paste_command() {
     get_tmux_option "$override_paste_command_option" "$override_paste_command_default"
 }
 
-yank_remote_port() {
-    get_tmux_option "$yank_remote_port_option" "$yank_remote_port_default"
+copy_remote_port() {
+    get_tmux_option "$copy_remote_port_option" "$copy_remote_port_default"
+}
+
+paste_remote_port() {
+    get_tmux_option "$paste_remote_port_option" "$paste_remote_port_default"
 }
 # Ensures a message is displayed for 5 seconds in tmux prompt.
 # Does not override the 'display-time' tmux option.
@@ -146,20 +153,20 @@ clipboard_copy_command() {
         fi
     elif command_exists "clip.exe"; then # WSL clipboard command
         echo "clip.exe"
-    elif [ -n "${DISPLAY-}" ] && command_exists "xclip"; then
+    elif [ "$(ss -n -4 state listening "( sport = $(copy_remote_port) )" | tail -n +2 | wc -l)" -eq 1 ]; then
+        local copy_remote_port
+        copy_remote_port="$(copy_remote_port)"
+        echo "tmux save-buffer - | cat | nc -q1 localhost $copy_remote_port"
+    elif command_exists "xclip"; then
         local xclip_selection
         xclip_selection="$(yank_selection)"
         echo "xclip -selection $xclip_selection"
-    elif [ -n "${DISPLAY-}" ] && command_exists "xsel"; then
+    elif command_exists "xsel"; then
         local xsel_selection
         xsel_selection="$(yank_selection)"
         echo "xsel -i --$xsel_selection"
     elif command_exists "putclip"; then # cygwin clipboard command
         echo "putclip"
-    elif [ -n "${yank_remote_port-}" ] \
-             && (netstate -f inet -nl 2>/dev/null || netstate -4 -nl 2>/dev/null) \
-             | grep -q "[.:]$yank_remote_port"; then
-        echo "nc -q0 localhost $yank_remote_port; display-message \"yank\""
     elif [ -n "$(custom_copy_command)" ]; then
         custom_copy_command
     fi
@@ -177,14 +184,18 @@ clipboard_paste_command() {
         fi
     elif command_exists "clip.exe"; then # WSL clipboard command
         echo "tmux paste-buffer"
+    elif [ "$(ss -n -4 state listening "( sport = $(paste_remote_port) )" | tail -n +2 | wc -l)" -eq 1 ]; then
+        local paste_remote_port
+        paste_remote_port="$(paste_remote_port)"
+        echo "tmux set-buffer \"\$(nc localhost $paste_remote_port)\"; tmux paste-buffer"
     elif command_exists "xclip"; then
         local xclip_selection
         xclip_selection="$(yank_selection)"
-        echo "tmux set-buffer \"$(xclip -o -selection $xclip_selection)\"; tmux paste-buffer"
+        echo "tmux set-buffer \"\$(xclip -o -selection $xclip_selection)\"; tmux paste-buffer"
     elif command_exists "xsel"; then
         local xsel_selection
         xsel_selection="$(yank_selection)"
-        echo "tmux set-buffer \"$(xsel -o --$xsel_selection)\"; tmux paste-buffer"
+        echo "tmux set-buffer \"\$(xsel -o --$xsel_selection)\"; tmux paste-buffer"
     elif command_exists "putclip"; then # cygwin clipboard command
         echo "tmux paste-buffer"
     elif [ -n "$(custom_paste_command)" ]; then
